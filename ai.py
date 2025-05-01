@@ -76,22 +76,86 @@ class AI:
         # This is done every turn knowing most will fail because
         # the faction does not have enough money to build them.
         my_cities = cities[faction_id]
+
         city_indexes = list(range(len(my_cities)))
         random.shuffle(city_indexes)
+
+        # Extract enemy units and cities
+        enemy_units = []
+        enemy_cities = []
+        for fid in factions.keys():  
+            if fid != faction_id:  
+                enemy_units.extend(units[fid])  
+                enemy_cities.extend(cities[fid]) 
+
+        unit_amounts = {"R": 0, "S": 0, "P": 0}
+        for u in units[faction_id]:
+            unit_amounts[u.utype] += 1
+            
+            # Find the nearest enemy unit
+            closest_enemy = None
+            min_distance = 5000
+            for enemy in enemy_units:
+                dist = u.pos.distance_line(enemy.pos) 
+                if dist < min_distance:
+                    min_distance = dist
+                    closest_enemy = enemy
+
+            # Find the nearest enemy city
+            closest_city = None
+            min_distance_city = 5000
+            for city in enemy_cities:
+                dist = u.pos.distance_line(city.pos)
+                if dist < min_distance_city:
+                    min_distance_city = dist
+                    closest_city = city
+
+            # Move towards the closest enemy unit if it's close, otherwise towards enemy cities
+            if closest_enemy and min_distance <= 3:
+                target = closest_enemy
+                dx = target.pos.x - u.pos.x
+                dy = target.pos.y - u.pos.y
+                if dx > 0:
+                    move_direction = 'E'
+                elif dx < 0:
+                    move_direction = 'W'
+                elif dy > 0:
+                    move_direction = 'S'
+                elif dy < 0: 
+                    move_direction = 'N'
+                cmds.append(MoveUnitCommand(faction_id, u.ID, move_direction))
+            else:
+                target = closest_city
+                if random.random() < 0.2:
+                    rand_dir = random.choice(list(vec2.MOVES.keys()))
+                    cmd = MoveUnitCommand(faction_id, u.ID, rand_dir)
+                    cmds.append(cmd)
+                else:
+                    dx = target.pos.x - u.pos.x
+                    dy = target.pos.y - u.pos.y
+                    if dx > 0:
+                        move_direction = 'E'
+                    elif dx < 0:
+                        move_direction = 'W'
+                    elif dy > 0:
+                        move_direction = 'S'
+                    elif dy < 0: 
+                        move_direction = 'N'
+                    cmds.append(MoveUnitCommand(faction_id, u.ID, move_direction))
+
+        # Designate the unit to build to ensure an equal amount of units exist
+        if unit_amounts["R"] < unit_amounts["S"]: 
+            unit_to_build = "R"
+        elif unit_amounts["S"] < unit_amounts["P"]:
+            unit_to_build = "S"
+        else:
+            unit_to_build = "P"
+        
         for ci in city_indexes:
             cmd = BuildUnitCommand(faction_id,
                                my_cities[ci].ID, 
-                               random.choice(['R', 'S', 'P']))
-            cmds.append(cmd)
-
-        # Overview: issue a move to every unit giving a random
-        # direction. Directions can be found in the vec2.py file.
-        # They are single char strings: 'N', 'E', 'W', 'S'.
-        my_units = units[faction_id]
-        for u in my_units:
-            rand_dir = random.choice(list(vec2.MOVES.keys()))
-            cmd = MoveUnitCommand(faction_id, u.ID, rand_dir)
-            cmds.append(cmd)
-
+                               unit_to_build)
+            cmds.append(cmd)     
+        
         # return all the command objects.
         return cmds
